@@ -47,15 +47,42 @@ function init() {
 }
 
 function loadDrone() {
-    const loader = new THREE.GLTFLoader();
+    const manager = new THREE.LoadingManager();
+    
+    manager.onError = function(url) {
+        console.warn('There was an error loading: ' + url);
+    };
+    
+    const loader = new THREE.GLTFLoader(manager);
+    
+    console.log('Starting to load GLTF model...');
     
     loader.load(
         'attached_assets/result1_1761168165742.gltf',
         function(gltf) {
+            console.log('GLTF loaded successfully!', gltf);
             drone = gltf.scene;
+            
+            console.log('Drone scene:', drone);
+            console.log('Drone children:', drone.children.length);
+            
+            drone.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    const materials = Array.isArray(child.material) ? child.material : [child.material];
+                    materials.forEach(mat => {
+                        if (mat.map) mat.map = null;
+                        if (mat.normalMap) mat.normalMap = null;
+                        if (mat.roughnessMap) mat.roughnessMap = null;
+                        if (mat.metalnessMap) mat.metalnessMap = null;
+                        mat.needsUpdate = true;
+                    });
+                }
+            });
             
             const box = new THREE.Box3().setFromObject(drone);
             box.getCenter(droneCenter);
+            
+            console.log('Drone center:', droneCenter);
             
             drone.position.sub(droneCenter);
             
@@ -65,22 +92,123 @@ function loadDrone() {
             const scale = 0.4 / maxDim;
             drone.scale.setScalar(scale);
             
+            console.log('Drone scale:', scale);
+            
             separateDroneIntoParts();
             
             scene.add(drone);
+            
+            console.log('Drone added to scene');
             
             setupScrollAnimations();
             
             hideLoading();
         },
         function(xhr) {
-            const percentComplete = (xhr.loaded / xhr.total) * 100;
-            console.log('Loading: ' + Math.round(percentComplete) + '%');
+            if (xhr.lengthComputable) {
+                const percentComplete = (xhr.loaded / xhr.total) * 100;
+                console.log('Loading: ' + Math.round(percentComplete) + '%');
+            }
         },
         function(error) {
             console.error('Error loading model:', error);
+            if (error.message) console.error('Error message:', error.message);
+            if (error.stack) console.error('Error stack:', error.stack);
+            
+            createFallbackDrone();
+            hideLoading();
         }
     );
+}
+
+function createFallbackDrone() {
+    console.log('Creating fallback drone geometry...');
+    
+    drone = new THREE.Group();
+    
+    const centerGeometry = new THREE.BoxGeometry(0.08, 0.02, 0.08);
+    const centerMaterial = new THREE.MeshPhongMaterial({ 
+        color: 0x4facfe,
+        shininess: 60
+    });
+    const centerPart = new THREE.Mesh(centerGeometry, centerMaterial);
+    drone.add(centerPart);
+    
+    const armLength = 0.12;
+    const armPositions = [
+        [armLength, 0, armLength],
+        [-armLength, 0, armLength],
+        [-armLength, 0, -armLength],
+        [armLength, 0, -armLength]
+    ];
+    
+    armPositions.forEach((pos, index) => {
+        const armGeometry = new THREE.CylinderGeometry(0.005, 0.005, armLength, 8);
+        const propellerGeometry = new THREE.CylinderGeometry(0.025, 0.025, 0.005, 16);
+        
+        const greyMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0x808080,
+            shininess: 60
+        });
+        
+        const angle = Math.atan2(pos[2], pos[0]);
+        const arm = new THREE.Mesh(armGeometry, greyMaterial);
+        arm.position.set(pos[0]/2, 0, pos[2]/2);
+        arm.rotation.z = angle - Math.PI/2;
+        
+        const propeller = new THREE.Mesh(propellerGeometry, greyMaterial);
+        propeller.position.set(pos[0], 0.015, pos[2]);
+        
+        drone.add(arm);
+        drone.add(propeller);
+    });
+    
+    scene.add(drone);
+    
+    createFallbackParts();
+    
+    setupScrollAnimations();
+    
+    console.log('Fallback drone created');
+}
+
+function createFallbackParts() {
+    const meshes = [];
+    drone.traverse((child) => {
+        if (child.isMesh) {
+            meshes.push(child);
+        }
+    });
+    
+    const partsCount = 6;
+    const meshesPerPart = Math.ceil(meshes.length / partsCount);
+    
+    for (let i = 0; i < partsCount; i++) {
+        const startIdx = i * meshesPerPart;
+        const endIdx = Math.min(startIdx + meshesPerPart, meshes.length);
+        const partMeshes = meshes.slice(startIdx, endIdx);
+        
+        if (partMeshes.length > 0) {
+            const partGroup = new THREE.Group();
+            
+            partMeshes.forEach(mesh => {
+                partGroup.userData.meshes = partGroup.userData.meshes || [];
+                partGroup.userData.meshes.push({
+                    mesh: mesh,
+                    originalPosition: mesh.position.clone(),
+                    originalRotation: mesh.rotation.clone()
+                });
+            });
+            
+            partGroup.userData.direction = new THREE.Vector3(
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2
+            ).normalize();
+            
+            droneParts.push(partGroup);
+        }
+    }
 }
 
 function separateDroneIntoParts() {
