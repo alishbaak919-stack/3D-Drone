@@ -20,7 +20,25 @@ body {
     z-index: 1;
     pointer-events: none;
 }
+.signature {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 150px;
+    height: auto;
+    opacity: 0.9;
+    z-index: 3;
+    pointer-events: none;
+    filter: brightness(2);  /* Makes the signature brighter against dark background */
+}
 
+@media (max-width: 768px) {
+    .signature {
+        width: 100px;
+        top: 10px;
+        right: 10px;
+    }
+}
 .scroll-container {
     position: relative;
     z-index: 2;

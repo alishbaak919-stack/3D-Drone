@@ -56,6 +56,8 @@ None specified yet.
 - Added drone model loading with color customization
 - Created assembly/disassembly animation system
 - Added responsive design with glassmorphic UI elements
+- Implemented fallback procedural drone geometry (GLTF had texture decode issues)
+- Fallback drone uses proper color scheme: blue center (#4facfe), grey parts (#808080)
 
 ## Workflow Configuration
 - **Server:** Python HTTP server on port 5000

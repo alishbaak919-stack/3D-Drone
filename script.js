@@ -58,7 +58,7 @@ function loadDrone() {
     console.log('Starting to load GLTF model...');
     
     loader.load(
-        'attached_assets/result1_1761168165742.gltf',
+        'attached_assets/result2_1761173319946.gltf',
         function(gltf) {
             console.log('GLTF loaded successfully!', gltf);
             drone = gltf.scene;
@@ -174,40 +174,50 @@ function createFallbackDrone() {
 
 function createFallbackParts() {
     const meshes = [];
+    let centerMesh = null;
+    
     drone.traverse((child) => {
         if (child.isMesh) {
-            meshes.push(child);
+            if (child.material && child.material.color && child.material.color.getHex() === 0x4facfe) {
+                centerMesh = child;
+            } else {
+                meshes.push(child);
+            }
         }
     });
     
-    const partsCount = 6;
-    const meshesPerPart = Math.ceil(meshes.length / partsCount);
+    const partsCount = 1;
+    droneParts.length = 0;
     
     for (let i = 0; i < partsCount; i++) {
-        const startIdx = i * meshesPerPart;
-        const endIdx = Math.min(startIdx + meshesPerPart, meshes.length);
-        const partMeshes = meshes.slice(startIdx, endIdx);
+        const partGroup = new THREE.Group();
+        partGroup.userData.meshes = [];
         
-        if (partMeshes.length > 0) {
-            const partGroup = new THREE.Group();
-            
-            partMeshes.forEach(mesh => {
-                partGroup.userData.meshes = partGroup.userData.meshes || [];
+        if (i === 0 && centerMesh) {
+            partGroup.userData.meshes.push({
+                mesh: centerMesh,
+                originalPosition: centerMesh.position.clone(),
+                originalRotation: centerMesh.rotation.clone()
+            });
+        }
+        
+        meshes.forEach((mesh, meshIndex) => {
+            if (meshIndex % (partsCount - 1) === (i < 1 ? i : i - 1) && i !== 3) {
                 partGroup.userData.meshes.push({
                     mesh: mesh,
                     originalPosition: mesh.position.clone(),
                     originalRotation: mesh.rotation.clone()
                 });
-            });
-            
-            partGroup.userData.direction = new THREE.Vector3(
-                (Math.random() - 0.5) * 2,
-                (Math.random() - 0.5) * 2,
-                (Math.random() - 0.5) * 2
-            ).normalize();
-            
-            droneParts.push(partGroup);
-        }
+            }
+        });
+        
+        partGroup.userData.direction = new THREE.Vector3(
+            (Math.random() - 0.5) * 2,
+            (Math.random() - 0.5) * 2,
+            (Math.random() - 0.5) * 2
+        ).normalize();
+        
+        droneParts.push(partGroup);
     }
 }
 
@@ -219,22 +229,24 @@ function separateDroneIntoParts() {
         }
     });
 
-    const meshCount = allMeshes.length;
     const partsCount = 6;
-    const meshesPerPart = Math.ceil(meshCount / partsCount);
+    const centerPartIndex = 3;
+    droneParts.length = 0;
 
     for (let i = 0; i < partsCount; i++) {
-        const startIdx = i * meshesPerPart;
-        const endIdx = Math.min(startIdx + meshesPerPart, meshCount);
-        const partMeshes = allMeshes.slice(startIdx, endIdx);
+        const partGroup = new THREE.Group();
+        partGroup.userData.meshes = [];
         
-        if (partMeshes.length > 0) {
-            const partGroup = new THREE.Group();
+        const isCenterPart = (i === centerPartIndex);
+        const partColor = isCenterPart ? 0x4facfe : 0x808080;
+        
+        allMeshes.forEach((mesh, meshIndex) => {
+            const assignedPart = (meshIndex % partsCount);
             
-            partMeshes.forEach(mesh => {
+            if (assignedPart === i) {
                 const worldPos = new THREE.Vector3();
                 mesh.getWorldPosition(worldPos);
-                partGroup.userData.meshes = partGroup.userData.meshes || [];
+                
                 partGroup.userData.meshes.push({
                     mesh: mesh,
                     originalParent: mesh.parent,
@@ -242,31 +254,25 @@ function separateDroneIntoParts() {
                     originalRotation: mesh.rotation.clone(),
                     worldPosition: worldPos
                 });
-            });
-            
-            const isCenterPart = (i === Math.floor(partsCount / 2));
-            const partColor = isCenterPart ? 0x4facfe : 0x808080;
-            
-            partMeshes.forEach(mesh => {
+                
                 if (mesh.material) {
                     const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
                     materials.forEach(mat => {
                         mat.color.setHex(partColor);
-                        mat.metalness = 0.6;
-                        mat.roughness = 0.4;
+                        if (mat.metalness !== undefined) mat.metalness = 0.6;
+                        if (mat.roughness !== undefined) mat.roughness = 0.4;
                     });
                 }
-            });
-            
-            partGroup.userData.originalPositions = [];
-            partGroup.userData.direction = new THREE.Vector3(
-                (Math.random() - 0.5) * 2,
-                (Math.random() - 0.5) * 2,
-                (Math.random() - 0.5) * 2
-            ).normalize();
-            
-            droneParts.push(partGroup);
-        }
+            }
+        });
+        
+        partGroup.userData.direction = new THREE.Vector3(
+            (Math.random() - 0.5) * 2,
+            (Math.random() - 0.5) * 2,
+            (Math.random() - 0.5) * 2
+        ).normalize();
+        
+        droneParts.push(partGroup);
     }
 }
 
